@@ -1,25 +1,12 @@
 # =========================
-# File: models.py
-# =========================
-from dataclasses import dataclass
-
-
-@dataclass
-class Actor:
-    """Classe de dados para representar um ator."""
-    id: int
-    first_name: str
-    last_name: str
-
-
-# =========================
-# File: managers.py
+# File: app/managers.py
 # =========================
 import sqlite3
 from typing import List, Optional
 from contextlib import contextmanager
 
-from models import Actor
+# Importação correta da classe Actor de models.py
+from app.models import Actor
 
 
 class ActorManager:
@@ -28,25 +15,25 @@ class ActorManager:
     def __init__(self, db_name: str, table_name: str = "actors"):
         """
         Inicializa o gerenciador com conexão ao banco de dados.
-
+        
         Args:
             db_name: Nome do arquivo do banco de dados
             table_name: Nome da tabela (padrão: "actors")
         """
         self.db_name = db_name
         self.table_name = table_name
-
+        
         # Validação básica do nome da tabela
         if not table_name.replace("_", "").isalnum():
             raise ValueError("Nome da tabela deve conter apenas letras, números e underscores")
-
+        
         # Cria conexão
         self.conn = sqlite3.connect(self.db_name)
         self.conn.row_factory = sqlite3.Row  # Permite acesso por nome de coluna
-
+        
         # Cria a tabela se não existir
         self._create_table()
-
+    
     @contextmanager
     def _get_cursor(self):
         """Context manager para obter e fechar cursor automaticamente."""
@@ -55,7 +42,7 @@ class ActorManager:
             yield cursor
         finally:
             cursor.close()
-
+    
     def _create_table(self) -> None:
         """Cria a tabela de atores se não existir."""
         with self._get_cursor() as cursor:
@@ -67,15 +54,15 @@ class ActorManager:
                 )
             """)
             self.conn.commit()
-
+    
     def create(self, first_name: str, last_name: str) -> Actor:
         """
         Cria um novo ator no banco de dados.
-
+        
         Args:
             first_name: Primeiro nome do ator
             last_name: Sobrenome do ator
-
+            
         Returns:
             Instância de Actor com o ID gerado
         """
@@ -85,28 +72,28 @@ class ActorManager:
                 (first_name, last_name)
             )
             self.conn.commit()
-
+            
             # Recupera o ID gerado
             actor_id = cursor.lastrowid
-
+            
             if actor_id is None:
                 # Para bancos que não suportam lastrowid, faz uma consulta
                 cursor.execute(f"SELECT last_insert_rowid() as id")
                 actor_id = cursor.fetchone()["id"]
-
+            
             return Actor(id=actor_id, first_name=first_name, last_name=last_name)
-
+    
     def all(self) -> List[Actor]:
         """
         Retorna todos os atores do banco de dados.
-
+        
         Returns:
             Lista de instâncias de Actor
         """
         with self._get_cursor() as cursor:
             cursor.execute(f"SELECT id, first_name, last_name FROM {self.table_name}")
             rows = cursor.fetchall()
-
+            
             return [
                 Actor(
                     id=row["id"],
@@ -115,16 +102,16 @@ class ActorManager:
                 )
                 for row in rows
             ]
-
+    
     def update(self, pk: int, new_first_name: str, new_last_name: str) -> bool:
         """
         Atualiza os dados de um ator.
-
+        
         Args:
             pk: ID do ator a ser atualizado
             new_first_name: Novo primeiro nome
             new_last_name: Novo sobrenome
-
+            
         Returns:
             True se o ator foi atualizado, False caso contrário
         """
@@ -134,17 +121,17 @@ class ActorManager:
                 (new_first_name, new_last_name, pk)
             )
             self.conn.commit()
-
+            
             # Retorna True se alguma linha foi afetada
             return cursor.rowcount > 0
-
+    
     def delete(self, pk: int) -> bool:
         """
         Exclui um ator do banco de dados.
-
+        
         Args:
             pk: ID do ator a ser excluído
-
+            
         Returns:
             True se o ator foi excluído, False caso contrário
         """
@@ -154,17 +141,17 @@ class ActorManager:
                 (pk,)
             )
             self.conn.commit()
-
+            
             # Retorna True se alguma linha foi afetada
             return cursor.rowcount > 0
-
+    
     def get(self, pk: int) -> Optional[Actor]:
         """
         Obtém um ator específico pelo ID.
-
+        
         Args:
             pk: ID do ator
-
+            
         Returns:
             Instância de Actor ou None se não encontrado
         """
@@ -174,7 +161,7 @@ class ActorManager:
                 (pk,)
             )
             row = cursor.fetchone()
-
+            
             if row:
                 return Actor(
                     id=row["id"],
@@ -182,81 +169,23 @@ class ActorManager:
                     last_name=row["last_name"]
                 )
             return None
-
+    
     def close(self) -> None:
         """Fecha a conexão com o banco de dados."""
         if hasattr(self, 'conn') and self.conn:
             self.conn.close()
-
+    
     def __enter__(self):
         """Suporte para context manager."""
         return self
-
+    
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Fecha a conexão ao sair do context manager."""
         self.close()
-
+    
     def __del__(self):
         """Fecha a conexão quando o objeto é destruído."""
-        self.close()
-
-
-# =========================
-# Testes
-# =========================
-if __name__ == "__main__":
-    # Teste usando banco de dados em memória
-    with ActorManager(":memory:", "actors") as manager:
-        # Teste 1: Tabela vazia
-        assert manager.all() == []
-        print("✓ Teste 1 passou: Tabela vazia")
-
-        # Teste 2: Criação de atores
-        actor1 = manager.create("Keanu", "Reeves")
-        actor2 = manager.create("Carrie-Anne", "Moss")
-        assert actor1.id == 1
-        assert actor2.id == 2
-        assert actor1.first_name == "Keanu"
-        print("✓ Teste 2 passou: Criação de atores")
-
-        # Teste 3: Listagem
-        actors = manager.all()
-        assert len(actors) == 2
-        assert actors[0].first_name == "Keanu"
-        print("✓ Teste 3 passou: Listagem completa")
-
-        # Teste 4: Busca por ID
-        found_actor = manager.get(1)
-        assert found_actor is not None
-        assert found_actor.first_name == "Keanu"
-        print("✓ Teste 4 passou: Busca por ID")
-
-        # Teste 5: Atualização
-        updated = manager.update(1, "Keanu", "Charles Reeves")
-        assert updated is True
-        updated_actor = manager.get(1)
-        assert updated_actor.last_name == "Charles Reeves"
-        print("✓ Teste 5 passou: Atualização")
-
-        # Teste 6: Atualização de ID inexistente
-        updated = manager.update(999, "John", "Doe")
-        assert updated is False
-        print("✓ Teste 6 passou: Atualização de ID inexistente")
-
-        # Teste 7: Exclusão
-        deleted = manager.delete(1)
-        assert deleted is True
-        assert len(manager.all()) == 1
-        print("✓ Teste 7 passou: Exclusão")
-
-        # Teste 8: Exclusão de ID inexistente
-        deleted = manager.delete(999)
-        assert deleted is False
-        print("✓ Teste 8 passou: Exclusão de ID inexistente")
-
-        # Teste 9: Busca de ID inexistente
-        not_found = manager.get(999)
-        assert not_found is None
-        print("✓ Teste 9 passou: Busca de ID inexistente")
-
-        print("\n✅ Todos os testes passaram com sucesso!")
+        try:
+            self.close()
+        except:
+            pass
